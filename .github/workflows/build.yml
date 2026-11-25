@@ -97,7 +97,9 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Testes de plataforma
-        run: node --test "scripts/macos/*.test.mjs"
+        run: |
+          node --test "scripts/macos/*.test.mjs"
+          node scripts/macos/mac-update-electron-check.mjs
 
       - name: Build e portão de release
         run: node scripts/macos/build-mac.mjs
