@@ -3,7 +3,7 @@
 # SOURCE_DEPLOY_KEY) and never committed here. Runs only by hand (workflow_dispatch needs write access here), never on
 # pull requests, so the key is never exposed to forks. Nothing is published: the .dmg and the update files are kept as
 # artifacts of the run (public, like the .dmg will be).
-#   gh workflow run build.yml -R devnezu/iasdsync-mac-build -f ref=feature/macos -f targets=monterey-x64
+#   gh workflow run build.yml -R devnezu/iasdsync-mac-build -f ref=feature/macos -f targets=all
 name: Mac build
 
 on:
@@ -14,9 +14,9 @@ on:
         required: true
         default: feature/macos
       targets:
-        description: "monterey-x64, monterey-arm64, public-x64, public-arm64 (separados por vírgula) ou all"
+        description: "public-x64, public-arm64 (separados por vírgula) ou all"
         required: true
-        default: monterey-x64
+        default: all
 
 permissions:
   contents: read
@@ -39,8 +39,6 @@ jobs:
             const all = {
               "public-x64": ["x64", "public", "macos-15-intel"],
               "public-arm64": ["arm64", "public", "macos-15"],
-              "monterey-x64": ["x64", "monterey", "macos-15-intel"],
-              "monterey-arm64": ["arm64", "monterey", "macos-15"],
             }
             const raw = process.env.TARGETS.trim()
             const want = raw === "all" ? Object.keys(all) : raw.split(",").map((t) => t.trim()).filter(Boolean)
