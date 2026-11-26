@@ -14,15 +14,19 @@ on:
         required: true
         default: feature/macos
       targets:
-        description: "public-x64, public-arm64 (separados por vírgula) ou all"
+        description: "public-x64, public-arm64, test-x64, test-arm64 (separados por vírgula) ou all (= os public)"
         required: true
         default: all
+      mac_version:
+        description: "Só para os alvos test-*: versão do build (ex.: 0.0.1)"
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: mac-build-${{ inputs.ref }}-${{ inputs.targets }}
+  group: mac-build-${{ inputs.ref }}-${{ inputs.targets }}-${{ inputs.mac_version }}
   cancel-in-progress: true
 
 jobs:
@@ -39,9 +43,11 @@ jobs:
             const all = {
               "public-x64": ["x64", "public", "macos-15-intel"],
               "public-arm64": ["arm64", "public", "macos-15"],
+              "test-x64": ["x64", "test", "macos-15-intel"],
+              "test-arm64": ["arm64", "test", "macos-15"],
             }
             const raw = process.env.TARGETS.trim()
-            const want = raw === "all" ? Object.keys(all) : raw.split(",").map((t) => t.trim()).filter(Boolean)
+            const want = raw === "all" ? ["public-x64", "public-arm64"] : raw.split(",").map((t) => t.trim()).filter(Boolean)
             const unknown = want.filter((t) => !all[t])
             if (!want.length || unknown.length) { console.error("Alvo desconhecido: " + unknown.join(", ")); process.exit(1) }
             const include = [...new Set(want)].map((t) => ({ arch: all[t][0], variant: all[t][1], runner: all[t][2] }))
@@ -59,6 +65,7 @@ jobs:
     env:
       IASD_MAC_ARCH: ${{ matrix.arch }}
       IASD_MAC_VARIANT: ${{ matrix.variant }}
+      IASD_MAC_VERSION: ${{ inputs.mac_version }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       NODE_OPTIONS: --max-old-space-size=6144
       IASD_SMOKE_SHOTS_DIR: ${{ github.workspace }}/screenshots
@@ -89,7 +96,7 @@ jobs:
             ~/.cargo/git
             native/syncdl/target/release
             vendor/media-tools-cache
-          key: mac-${{ matrix.arch }}-${{ matrix.variant }}-${{ hashFiles('native/syncdl/Cargo.lock', 'scripts/macos/media-tools-sources.darwin.json', 'scripts/macos/canvas-deps.*.txt', 'scripts/macos/variant.cjs') }}
+          key: mac-${{ matrix.arch }}-${{ matrix.variant == 'test' && 'public' || matrix.variant }}-${{ hashFiles('native/syncdl/Cargo.lock', 'scripts/macos/media-tools-sources.darwin.json', 'scripts/macos/canvas-deps.*.txt', 'scripts/macos/variant.cjs') }}
 
       - name: Dependências
         run: npm ci --no-audit --no-fund

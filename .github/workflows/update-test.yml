@@ -1,0 +1,75 @@
+# End-to-end test of the Mac self-update on GitHub's Macs (Intel and Apple Silicon), with screenshots.
+# Before it: build.yml with targets=test-x64,test-arm64 twice (an old and a newer mac_version), and the newer one
+# published to the test-<arch> channels from the machine with the signing key. This run installs the OLD .dmg (from
+# the run given in old_run) and checks that it updates itself to new_version. Screenshots: artifact prints-update-*.
+#   gh workflow run update-test.yml -R devnezu/iasdsync-mac-build -f ref=<sha> -f old_run=<run id> -f new_version=0.0.2
+name: Mac update test
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch ou commit do código (scripts do teste)
+        required: true
+        default: feature/macos
+      old_run:
+        description: Run do build.yml com a versão ANTIGA (alvos test-*)
+        required: true
+      new_version:
+        description: Versão publicada nos canais test-* que o app deve receber
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  update:
+    name: atualização (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: devnezu/iSync
+          ref: ${{ inputs.ref }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/macos
+            package.json
+            package-lock.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+
+      # only the package metadata (launch-smoke.mjs reads the Electron version); no download of Electron itself
+      - name: Pacote do Electron
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund electron@$(node -p "require('./package.json').devDependencies.electron.replace(/^[^0-9]*/, '')")
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: IasdSync-mac-${{ matrix.arch }}-test
+          path: old-dmg
+          run-id: ${{ inputs.old_run }}
+          github-token: ${{ github.token }}
+
+      - name: Atualizar a versão antiga
+        run: node scripts/macos/update-e2e.mjs "$(ls old-dmg/*/*.dmg old-dmg/*.dmg 2>/dev/null | head -1)" "${{ inputs.new_version }}" "$GITHUB_WORKSPACE/prints"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prints-update-${{ matrix.arch }}
+          path: prints/
+          if-no-files-found: warn
+          retention-days: 14
